@@ -81,9 +81,9 @@ func main() {
 		a, _ := os.Open("test.mp4")
 		stat, _ := a.Stat()
 
-		jancok, _ := strconv.ParseInt(string(abc), 10, 64)
+		tmpR, _ := strconv.ParseInt(string(abc), 10, 64)
 		chunk := math.Pow10(6)
-		start := jancok
+		start := tmpR
 		end := math.Min(float64(start)+chunk, float64(stat.Size())-1)
 		koko := io.NewSectionReader(a, int64(start), int64(chunk))
 
@@ -115,9 +115,9 @@ func main() {
 		var regex, _ = regexp.Compile(`[\D]`)
 		abc := regex.ReplaceAll([]byte(r), []byte(""))
 
-		jancok, _ := strconv.ParseInt(string(abc), 10, 64)
+		tmpR, _ := strconv.ParseInt(string(abc), 10, 64)
 		chunk := 5 * math.Pow10(6)
-		start := jancok
+		start := tmpR
 
 		client := gs.GetClient()
 		rd, _ := client.Bucket("bucket_name").
