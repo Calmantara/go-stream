@@ -9,12 +9,13 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
+	"testing"
 
 	"context"
 
-	"github.com/gin-gonic/gin"
-
 	"cloud.google.com/go/storage"
+	"github.com/gin-gonic/gin"
 )
 
 type CloudStorageParam struct {
@@ -75,21 +76,38 @@ func main() {
 			)
 			return
 		}
+		fmt.Println(r)
+		arrR := strings.Split(r, "-")
 		var regex, _ = regexp.Compile(`[\D]`)
-		abc := regex.ReplaceAll([]byte(r), []byte(""))
+		abc := regex.ReplaceAll([]byte(arrR[0]), []byte(""))
 
-		a, _ := os.Open("test.mp4")
-		stat, _ := a.Stat()
-
+		a, _ := os.Open("8Vg1pnY54eZHUkCHfC6EV4WMpoJSJesZ499.mp4")
 		tmpR, _ := strconv.ParseInt(string(abc), 10, 64)
-		chunk := math.Pow10(6)
+		if tmpR == 1 {
+			tmpR = 0
+		}
+		// if tmpR > 100000 && tmpR < 1000000 {
+		// 	fmt.Println("CHANGED!")
+		// 	a, _ = os.Open("test copy.mp4")
+		// }
+
+		stat, _ := a.Stat()
+		exp := tmpR % 8
+		if exp == 0 {
+			exp = 1
+		}
+		chunk := math.Pow10(int(exp))
 		start := tmpR
+
 		end := math.Min(float64(start)+chunk, float64(stat.Size())-1)
+		if len(arrR) > 1 && arrR[1] != "" {
+			end, _ = strconv.ParseFloat(arrR[1], 64)
+			chunk = end - float64(start)
+		}
+
 		koko := io.NewSectionReader(a, int64(start), int64(chunk))
 
 		fmt.Println(fmt.Sprintf("bytes %v-%v/%v", start, int(end), stat.Size()))
-
-		io.Pipe()
 
 		c.DataFromReader(
 			http.StatusPartialContent,
@@ -120,24 +138,48 @@ func main() {
 		start := tmpR
 
 		client := gs.GetClient()
-		rd, _ := client.Bucket("bucket_name").
-			Object("object_name").
-			NewRangeReader(context.Background(), start, int64(chunk))
+		// rd, _ := client.Bucket("mindtera-video-dev").
+		// Object("5BPltZkKok29UFXzW0I1XJDxHfyEJlxO614.mp4").
+		NewRangeReader(context.Background(), start, int64(chunk))
 		defer rd.Close()
+
 		end := math.Min(float64(start)+chunk, float64(rd.Size())-1)
 
 		fmt.Println(fmt.Sprintf("bytes %v-%v/%v", start, int(end), rd.Size()))
 
-		io.Pipe()
+		c.Stream(func(w io.Writer) bool {
+			if int64(end) < (rd.Size() - 1) {
+				// c.DataFromReader(
+				// 	http.StatusOK,
+				// 	int64(chunk), "video/mp4",
+				// 	rd, map[string]string{
+				// 		"Accept-Ranges": "bytes",
+				// 		"Content-Range": fmt.Sprintf("bytes %v-%v/%v", start, int(end), rd.Size()),
+				// 	})
+				c.SSEvent("s", "")
+				return true
+			}
 
-		c.DataFromReader(
-			http.StatusPartialContent,
-			int64(chunk), "video/mp4",
-			rd, map[string]string{
-				"Accept-Ranges": "bytes",
-				"Content-Range": fmt.Sprintf("bytes %v-%v/%v", start, int(end), rd.Size()),
-			})
+			return false
+		})
 	})
 
 	router.Run()
+}
+
+func TestSegment(t *testing.T) {
+	inputFile := "1_tmp.mp4"
+	baseDir := "test"
+	indexFileName := "playlist.m3u8"
+	baseFileName := "mongotv"
+	baseFileExtension := ".ts"
+	segmentLength := 5
+	maxSegments := 2048
+	// init ffmpeg avformat avcodec register
+	Init()
+
+	// sement mp4 file to m3u8
+	if err := Segment(inputFile, baseDir, indexFileName, baseFileName, baseFileExtension, segmentLength, maxSegments); err != nil {
+		t.Errorf("segment file=%s faild.\n", inputFile)
+	}
 }
